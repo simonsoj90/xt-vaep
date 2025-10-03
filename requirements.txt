@@ -1,0 +1,11 @@
+pandas
+numpy
+scikit-learn
+matplotlib
+statsbombpy
+mplsoccer
+streamlit
+xgboost
+pyarrow
+tqdm
+joblib

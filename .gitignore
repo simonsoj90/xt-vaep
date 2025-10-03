@@ -1,0 +1,21 @@
+# Python/venv
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+.env.*
+
+# OS/IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Data & generated outputs
+data/raw/
+data/interim/
+data/processed/
+reports/player_profiles/
+
+# Notebooks
+.ipynb_checkpoints/
