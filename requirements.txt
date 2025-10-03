@@ -9,3 +9,4 @@ xgboost
 pyarrow
 tqdm
 joblib
+fastparquet
