@@ -47,12 +47,12 @@ t1,t2,t3=st.tabs(["xT","VAEP","Compare"])
 with t1:
     dx=d[[c for c in cols_xt if c in d.columns]].copy()
     if "xT_per90" in dx.columns: dx=dx.sort_values("xT_per90",ascending=False)
-    st.dataframe(dx.head(topn).reset_index(drop=True),use_container_width=True)
+    st.dataframe(dx.head(topn).reset_index(drop=True),width="stretch")
     st.download_button("download csv",dx.head(topn).to_csv(index=False).encode(),file_name="xt_top.csv")
 with t2:
     dv=d[[c for c in cols_vaep if c in d.columns]].copy()
     if "vaep_per90" in dv.columns: dv=dv.sort_values("vaep_per90",ascending=False)
-    st.dataframe(dv.head(topn).reset_index(drop=True),use_container_width=True)
+    st.dataframe(dv.head(topn).reset_index(drop=True),width="stretch")
     st.download_button("download csv",dv.head(topn).to_csv(index=False).encode(),file_name="vaep_top.csv")
 with t3:
     if {"xT_per90","vaep_per90"}.issubset(d.columns):
