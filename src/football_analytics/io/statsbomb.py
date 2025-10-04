@@ -128,7 +128,10 @@ def build_events_table(selection: SBSelection, out_parquet: Path) -> pd.DataFram
         events_norm["competition_id"] = comp_id
     if "season_id" not in events_norm.columns:
         events_norm["season_id"] = season_id
+    events_norm["competition_name"] = selection.competition
+    events_norm["season_name"] = selection.season
     out_parquet.parent.mkdir(parents=True, exist_ok=True)
     events_norm.to_parquet(out_parquet)
     return events_norm
+
 

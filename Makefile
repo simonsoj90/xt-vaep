@@ -1,17 +1,20 @@
-.PHONY: setup install fetch xt vaep players app test clean all
+.PHONY: setup install fetch fetch-force xt vaep players app test clean all
 VENV:=.venv
 PY:=$(VENV)/bin/python
 PIP:=$(VENV)/bin/pip
 
 setup:
 	python -m venv $(VENV)
-	. $(VENV)/bin/activate && pip install -U pip -r requirements.txt
 
 install:
+	$(PIP) install -U pip -r requirements.txt
 	$(PIP) install -e .
 
 fetch:
 	$(PY) scripts/fetch_statsbomb_open.py --config data/leagues.yml
+
+fetch-force:
+	$(PY) scripts/fetch_statsbomb_open.py --config data/leagues.yml --force
 
 xt:
 	$(PY) scripts/train_xt.py --in_parquet data/interim/events_all.feather
