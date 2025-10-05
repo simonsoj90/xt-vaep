@@ -64,8 +64,9 @@ def fetch_events_for_matches(match_ids: Iterable[int]) -> pd.DataFrame:
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)
 
+
 def normalize_events(events: pd.DataFrame, match_meta: pd.DataFrame) -> pd.DataFrame:
-    cols=["match_id","team","player","type","minute","second","period","timestamp","possession","play_pattern","under_pressure","location","pass_end_location","carry_end_location","pass_length","pass_angle","outcome","shot_outcome","duration"]
+    cols=["match_id","team","player","type","minute","second","period","timestamp","possession","play_pattern","under_pressure","location","pass_end_location","carry_end_location","pass_length","pass_angle","outcome","shot_outcome","duration","substitution"]
     use=[c for c in cols if c in events.columns]
     df=events[use].copy()
     if "type" in df.columns:
@@ -78,15 +79,10 @@ def normalize_events(events: pd.DataFrame, match_meta: pd.DataFrame) -> pd.DataF
     def outc(row):
         a=row.get("shot_outcome")
         b=row.get("outcome")
-        if isinstance(a,dict):
-            a=a.get("name")
-        if isinstance(b,dict):
-            b=b.get("name")
+        if isinstance(a,dict): a=a.get("name")
+        if isinstance(b,dict): b=b.get("name")
         return a if pd.notna(a) and str(a)!="" else b
     df["event_outcome"]=df.apply(outc,axis=1)
-    if "shot_outcome" in df.columns:
-        m=df["shot_outcome"].astype(str).str.len()>0
-        df.loc[m,"event_type"]="Shot"
     for c,k in [("team","name"),("player","name"),("play_pattern","name")]:
         if c in df.columns:
             df[c]=df[c].apply(lambda d: d.get(k) if isinstance(d,dict) else d)
@@ -102,22 +98,28 @@ def normalize_events(events: pd.DataFrame, match_meta: pd.DataFrame) -> pd.DataF
     df["pass_end_x"],df["pass_end_y"]=zip(*df.apply(lambda r: split_loc(r.get("pass_end_location")),axis=1))
     df["carry_end_x"],df["carry_end_y"]=zip(*df.apply(lambda r: split_loc(r.get("carry_end_location")),axis=1))
     df["time_seconds"]=df["minute"].fillna(0)*60+df["second"].fillna(0)
-    keep=["match_id","team","player","event_type","event_outcome","period","minute","second","time_seconds","possession","x","y","pass_end_x","pass_end_y","carry_end_x","carry_end_y","pass_length","pass_angle","under_pressure","duration"]
-    keep=[c for c in keep if c in df.columns]
-    df=df[keep].copy()
-    mm=match_meta.copy()
-    if "home_team" in mm.columns and isinstance(mm["home_team"].iloc[0],dict):
-        mm["home_team"]=mm["home_team"].apply(lambda d: d.get("home_team_name") or d.get("name") or d)
-    if "away_team" in mm.columns and isinstance(mm["away_team"].iloc[0],dict):
-        mm["away_team"]=mm["away_team"].apply(lambda d: d.get("away_team_name") or d.get("name") or d)
+    if "substitution" in df.columns:
+        def repl_name(v):
+            if isinstance(v,dict):
+                r=v.get("replacement")
+                if isinstance(r,dict):
+                    return r.get("name")
+            return None
+        df["substitution_replacement"]=df["substitution"].apply(repl_name)
+    meta=match_meta.copy()
+    if "home_team" in meta.columns and isinstance(meta["home_team"].iloc[0],dict):
+        meta["home_team"]=meta["home_team"].apply(lambda d: d.get("home_team_name") or d.get("name") or d)
+    if "away_team" in meta.columns and isinstance(meta["away_team"].iloc[0],dict):
+        meta["away_team"]=meta["away_team"].apply(lambda d: d.get("away_team_name") or d.get("name") or d)
     for c in ["home_team","away_team"]:
-        if c not in mm.columns and f"{c}_name" in mm.columns:
-            mm[c]=mm[f"{c}_name"]
+        if c not in meta.columns and f"{c}_name" in meta.columns:
+            meta[c]=meta[f"{c}_name"]
     meta_cols=["match_id","competition_id","season_id","match_date","home_team","away_team","home_score","away_score"]
-    mm=mm[[c for c in meta_cols if c in mm.columns]].drop_duplicates("match_id")
-    out=df.merge(mm,on="match_id",how="left")
+    meta=meta[[c for c in meta_cols if c in meta.columns]].drop_duplicates("match_id")
+    keep=["match_id","team","player","event_type","event_outcome","period","minute","second","time_seconds","possession","x","y","pass_end_x","pass_end_y","carry_end_x","carry_end_y","pass_length","pass_angle","under_pressure","duration","substitution_replacement"]
+    keep=[c for c in keep if c in df.columns]
+    out=df[keep].merge(meta,on="match_id",how="left")
     return out
-
 
 def build_events_table(selection: SBSelection, out_parquet: Path) -> pd.DataFrame:
     comp_id, season_id = resolve_comp_season(selection)
