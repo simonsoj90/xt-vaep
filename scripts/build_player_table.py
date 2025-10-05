@@ -4,6 +4,8 @@ import pandas as pd
 from football_analytics.metrics.progressive import add_progressive_flags,player_progressive_value
 from football_analytics.metrics.retention import player_retention
 from football_analytics.metrics.duels import player_duels
+from football_analytics.features.minutes import minutes_from_subs
+from football_analytics.features.roles import player_roles
 
 def parse_args():
     p=argparse.ArgumentParser()
@@ -14,33 +16,23 @@ def parse_args():
     return p.parse_args()
 
 def keycols(ev: pd.DataFrame):
-    cols=[]
-    for c in ["competition_id","season_id","competition_name","season_name"]:
-        if c in ev.columns:
-            cols.append(c)
+    cols=[c for c in ["competition_id","season_id","competition_name","season_name"] if c in ev.columns]
     cols.append("player")
     return cols
 
-def estimate_minutes(ev: pd.DataFrame) -> pd.DataFrame:
-    k=keycols(ev)
-    g=ev.groupby(k+["match_id"],dropna=False)["minute"].max().reset_index()
-    g["mins"]=g["minute"].fillna(0).clip(lower=0,upper=90)+1
-    m=g.groupby(k,dropna=False)["mins"].sum().rename("minutes_played").reset_index()
-    return m
-
-def agg_xt(ev: pd.DataFrame) -> pd.DataFrame:
+def agg_xt(ev: pd.DataFrame, mins: pd.DataFrame) -> pd.DataFrame:
     k=keycols(ev)
     g=ev.groupby(k,dropna=False)["xT_delta"].sum().rename("xT_total").reset_index()
-    mins=estimate_minutes(ev)
-    out=g.merge(mins,how="left",on=k)
+    out=g.merge(mins,how="left",on=[c for c in k if c!="player"]+["player"])
+    out["minutes_played"]=out["minutes_played"].fillna(0)
     out["xT_per90"]=out["xT_total"]/out["minutes_played"].replace(0,1)*90
     return out
 
-def agg_vaep(ev: pd.DataFrame) -> pd.DataFrame:
+def agg_vaep(ev: pd.DataFrame, mins: pd.DataFrame) -> pd.DataFrame:
     k=keycols(ev)
     g=ev.groupby(k,dropna=False)["vaep_delta"].sum().rename("vaep_total").reset_index()
-    mins=estimate_minutes(ev)
-    out=g.merge(mins,how="left",on=k)
+    out=g.merge(mins,how="left",on=[c for c in k if c!="player"]+["player"])
+    out["minutes_played"]=out["minutes_played"].fillna(0)
     out["vaep_per90"]=out["vaep_total"]/out["minutes_played"].replace(0,1)*90
     return out
 
@@ -48,23 +40,29 @@ def main():
     a=parse_args()
     Path(a.out_parquet).parent.mkdir(parents=True,exist_ok=True)
     ev_xt=pd.read_parquet(a.events_with_xt)
+    mins=minutes_from_subs(ev_xt)
     ev_xt=add_progressive_flags(ev_xt)
-    prog=player_progressive_value(ev_xt)
+    prog=player_progressive_value(ev_xt, keycols(ev_xt))
+    prog=prog.merge(mins,how="left",on=[c for c in keycols(ev_xt) if c!="player"]+["player"])
+    prog["minutes_played"]=prog["minutes_played"].fillna(0)
+    prog["progressive_xT_per90"]=prog["progressive_xT_total"]/prog["minutes_played"].replace(0,1)*90
     ret=player_retention(ev_xt)
     due=player_duels(ev_xt)
-    xt=agg_xt(ev_xt)
-    try:
-        ev_v=pd.read_parquet(a.events_with_vaep)
-        va=agg_vaep(ev_v)
-    except Exception:
-        va=pd.DataFrame(columns=keycols(ev_xt)+["vaep_total","minutes_played","vaep_per90"])
+    roles=player_roles(ev_xt)
+    xt=agg_xt(ev_xt,mins)
     acts=ev_xt.groupby(keycols(ev_xt),dropna=False).size().rename("actions").reset_index()
     base=xt.merge(acts,how="left",on=keycols(ev_xt))
-    base=base.merge(prog,how="left",on="player").merge(ret,how="left",on="player").merge(due,how="left",on="player")
-    if not va.empty:
-        base=base.merge(va,how="left",on=keycols(ev_xt))
+    base=base.merge(prog,how="left",on=keycols(ev_xt)+["minutes_played"])
+    base=base.merge(ret,how="left",on="player").merge(due,how="left",on="player").merge(roles,how="left",on="player")
+    try:
+        ev_v=pd.read_parquet(a.events_with_vaep)
+        va=agg_vaep(ev_v,mins)
+        base=base.merge(va,how="left",on=keycols(ev_xt)+["minutes_played"])
+    except Exception:
+        pass
     base.to_parquet(a.out_parquet)
     base.to_csv(a.out_csv,index=False)
 
 if __name__=="__main__":
     main()
+

@@ -2,10 +2,11 @@ import numpy as np
 import pandas as pd
 
 class XTGrid:
-    def __init__(self,n_x=16,n_y=12,max_iter=300,tol=1e-8,gamma=0.97):
+    def __init__(self, n_x: int = 16, n_y: int = 12, gamma: float = 0.97, max_iter: int = 200, tol: float = 1e-6):
         self.n_x=n_x
         self.n_y=n_y
-        self.max_iter=max_iter
+        self.gamma=gamma
+        self.max_iter=int(max_iter)
         self.tol=tol
         self.gamma=gamma
         self.v=np.zeros((n_y,n_x))
@@ -28,9 +29,19 @@ class XTGrid:
             yi[m]=ys
         return xi,yi,m
     
-    def _bin(self,x,y):
-        xi,yi,_=self._bin_valid(x,y)
+    def _bin(self, x, y):
+        xi=np.clip((np.asarray(x)/self._w)*self.n_x,0,self.n_x-1).astype(int)
+        yi=np.clip((np.asarray(y)/self._h)*self.n_y,0,self.n_y-1).astype(int)
         return xi,yi
+
+    def value(self, x, y):
+        v=getattr(self,"v",None)
+        if v is None and hasattr(self,"V"):
+            v=self.V
+        if v is None:
+            raise RuntimeError("xT grid values not available; call fit() first")
+        xi,yi=self._bin(x,y)
+        return v[yi,xi]
 
     def fit(self,events:pd.DataFrame,pitch_w=120.0,pitch_h=80.0):
         self._w=float(pitch_w); self._h=float(pitch_h)
@@ -77,7 +88,7 @@ class XTGrid:
         v=self.v.reshape(k)
         r=(self.p_shot*self.p_goal).reshape(k)
         p=(1.0-self.p_shot).reshape(k)
-        for _ in range(self.max_iter):
+        for _ in range(int(self.max_iter)):
             t=v.copy()
             mv=self.M@v if self.M is not None else np.zeros_like(v)
             v=r+self.gamma*(p*mv)
