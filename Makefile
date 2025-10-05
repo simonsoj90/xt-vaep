@@ -1,4 +1,4 @@
-.PHONY: setup install fetch fetch-force xt vaep players app test clean all
+.PHONY: setup install fetch fetch-force xt vaep players normalize app test clean all
 VENV:=.venv
 PY:=$(VENV)/bin/python
 PIP:=$(VENV)/bin/pip
@@ -34,5 +34,8 @@ test:
 clean:
 	rm -rf __pycache__ .pytest_cache *.egg-info
 
+normalize:
+	.venv/bin/python scripts/normalize_metrics.py
+
 all:
-	make fetch && make xt && make vaep && make players
+	make fetch && make xt && make vaep && make players && make normalize & make app

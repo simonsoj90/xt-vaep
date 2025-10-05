@@ -6,6 +6,10 @@ class XTModel:
     def __init__(self, n_x: int = 16, n_y: int = 12, gamma: float = 0.97):
         self.grid=XTGrid(n_x,n_y,gamma)
 
+    def load_grid(self,path:str):
+        v=XTGrid.load(path)
+        self.grid.set_grid(v)
+
     def fit(self, events: pd.DataFrame) -> None:
         self.grid.fit(events)
 

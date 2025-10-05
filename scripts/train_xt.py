@@ -1,36 +1,29 @@
+import argparse, pandas as pd
 from pathlib import Path
-import argparse
-import pandas as pd
-from football_analytics.models.xt.infer import XTModel,aggregate_players
-from football_analytics.features.states import ensure_basic_event_fields
-
-def parse_args():
-    p=argparse.ArgumentParser()
-    p.add_argument("--in_parquet",default="data/interim/events_all.feather")
-    p.add_argument("--grid_out",default="data/processed/xt_grid.npz")
-    p.add_argument("--events_out",default="data/processed/events_with_xt.parquet")
-    p.add_argument("--players_out",default="data/processed/player_xt.parquet")
-    p.add_argument("--nx",type=int,default=16)
-    p.add_argument("--ny",type=int,default=12)
-    return p.parse_args()
+from football_analytics.models.xt.infer import XTModel
 
 def main():
-    a=parse_args()
-    Path(a.events_out).parent.mkdir(parents=True,exist_ok=True)
-    Path(a.grid_out).parent.mkdir(parents=True,exist_ok=True)
-    Path(a.players_out).parent.mkdir(parents=True,exist_ok=True)
-    ev=pd.read_feather(a.in_parquet)
-    ev=ensure_basic_event_fields(ev)
-    for c in ["x","y","pass_end_x","pass_end_y","carry_end_x","carry_end_y"]:
-        if c in ev.columns:
-            ev[c]=pd.to_numeric(ev[c],errors="coerce")
-    m=XTModel(a.nx,a.ny)
-    m.fit(ev)
+    ap=argparse.ArgumentParser()
+    ap.add_argument("--in_parquet",default="data/interim/events_all.feather")
+    ap.add_argument("--use_grid",default="data/processed/xt_grid.npz")
+    ap.add_argument("--out_events",default="data/processed/events_with_xt.parquet")
+    args=ap.parse_args()
+    if args.in_parquet.endswith(".feather"):
+        ev=pd.read_feather(args.in_parquet)
+    else:
+        ev=pd.read_parquet(args.in_parquet)
+    ev=ev[ev["event_type"].isin(["Pass","Carry","Shot"])].copy()
+    m=XTModel(16,12)
+    p=Path(args.use_grid)
+    if p.exists():
+        m.load_grid(str(p))
+    else:
+        m.fit(ev)
+        Path(p.parent).mkdir(parents=True,exist_ok=True)
+        m.grid.save(str(p))
     ve=m.value_events(ev)
-    m.grid.save(a.grid_out)
-    ve.to_parquet(a.events_out)
-    pl=aggregate_players(ve)
-    pl.to_parquet(a.players_out)
+    Path(args.out_events).parent.mkdir(parents=True,exist_ok=True)
+    ve.to_parquet(args.out_events)
 
 if __name__=="__main__":
     main()
